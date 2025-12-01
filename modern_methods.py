@@ -420,6 +420,6 @@ def run_test_and_dump_b3():
 
 
 if __name__ == "__main__":
-    #run_test_and_dump_b1()
+    run_test_and_dump_b1()
     run_batch_classification_b2()
-    #run_test_and_dump_b3()
+    run_test_and_dump_b3()

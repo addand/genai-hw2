@@ -25,82 +25,100 @@ def configure_matplotlib_chinese():
     plt.rcParams['font.sans-serif'] = font_list
     plt.rcParams['axes.unicode_minus'] = False # 解決負號顯示問題
 
+import os
+import requests
+import jieba
+
 def initialize_traditional_chinese():
     """
-    下載並設定 jieba 為繁體中文模式，同時準備停用詞表 (具備自動備援機制)。
+    下載並設定 jieba 為繁體中文模式。
+    優化邏輯：若停用詞檔案已存在，則直接讀取，不再下載。
     """
     print("=== 初始化繁體中文環境 ===")
 
-    # 1. 設定 jieba 繁體大詞庫
+    # --- 1. 設定 jieba 繁體大詞庫 (這部分通常也建議只下載一次) ---
     dict_file = "dict.txt.big"
     if not os.path.exists(dict_file):
         print(f"正在下載繁體中文詞庫 ({dict_file})...")
         url = "https://raw.githubusercontent.com/fxsjy/jieba/master/extra_dict/dict.txt.big"
         try:
-            r = requests.get(url, timeout=15)
+            r = requests.get(url, timeout=30)
             with open(dict_file, "wb") as f:
                 f.write(r.content)
             print("詞庫下載完成。")
         except Exception as e:
-            print(f"詞庫下載失敗，將使用預設詞庫 (效果可能較差)。錯誤: {e}")
+            print(f"詞庫下載失敗，將使用預設詞庫。錯誤: {e}")
+    else:
+        print(f"偵測到詞庫檔案 ({dict_file})，跳過下載。")
     
     if os.path.exists(dict_file):
         jieba.set_dictionary(dict_file)
-        print(f"已載入繁體詞庫: {dict_file}")
 
-    # 2. 準備停用詞表 (優先下載 stopwords-iso，失敗則用內建)
-    stop_file = "stopwords_zh.txt"
+    # --- 2. 處理停用詞表 (核心優化部分) ---
+    stop_file = "stopwords_tw.txt"
     stop_words = set()
-    download_success = False
-
+    
+    # 定義需要補強的詞彙 (台灣慣用語 + 標點)
+    taiwan_enhancements = {
+        '我們', '你們', '他們', '大家', '自己', '這裡', '那裡', '這邊', '那邊',
+        '的話', '接著', '然後', 
+        '其實', '基本上', '原則上', '總之', '看來', '一般', '通常', '來說',
+        '部分', '方面', '時候', 
+        '好像', '比如', '例如', 
+        '各位', '是否', '一定', '可能', '沒有', '除了'
+    }
+    
+    # 標點符號
+    symbols = {'\n', '\r', ' ', '\t', '\u3000', '，', '。', '！', '？', '：', '；', '「', '」', '（', '）', '、', '【', '】', '《', '》'}
+    
+    # 判斷檔案是否存在
     if not os.path.exists(stop_file):
-        print("正在下載通用中文停用詞表...")
-        url = "https://raw.githubusercontent.com/stopwords-iso/stopwords-zh/master/stopwords-zh.txt"
+        print(f"停用詞檔不存在，開始下載並製作 ({stop_file})...")
+        download_success = False
+        
+        # 下載基礎清單
+        url = "https://raw.githubusercontent.com/GooseGIS/jieba-zh_TW_stopwords/master/stopwords_tw.txt"
         try:
             r = requests.get(url, timeout=10)
             if r.status_code == 200:
-                with open(stop_file, "w", encoding="utf-8") as f:
-                    f.write(r.text)
+                # 將下載的文字轉為 set
+                for line in r.text.splitlines():
+                    stop_words.add(line.strip())
                 download_success = True
-                print("停用詞表下載完成。")
+                print("基礎停用詞下載成功。")
         except Exception as e:
-            print(f"外部停用詞下載失敗，切換至內建備援模式。")
-    else:
-        download_success = True
+            print(f"下載失敗，將建立僅含基本詞彙的清單。錯誤: {e}")
+            # 內建備援
+            basic_stops = {'的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一個', '上', '也', '很', '到', '說', '要', '去', '你', '這', '那', '與', '為', '之', '而', '及', '著', '或是', '因為', '所以'}
+            stop_words.update(basic_stops)
 
-    # 3. 載入停用詞
-    if download_success and os.path.exists(stop_file):
+        # 合併補強詞彙
+        stop_words.update(taiwan_enhancements)
+        stop_words.update(symbols)
+
+        # 一次性寫入完整的檔案 (包含下載的 + 補強的)
+        try:
+            with open(stop_file, "w", encoding="utf-8") as f:
+                sorted_stopwords = sorted(list(stop_words))
+                f.write('\n'.join(sorted_stopwords))
+            print(f"已建立完整停用詞檔：{stop_file}")
+        except Exception as e:
+            print(f"存檔失敗: {e}")
+
+    else:
+        print(f"偵測到停用詞檔 ({stop_file})，直接讀取...")
+        # 檔案存在，直接讀取 (最省時)
         with open(stop_file, "r", encoding="utf-8") as f:
             for line in f:
                 stop_words.add(line.strip())
-    else:
-        # 內建備援清單 (如果網路不通，至少能過濾這些)
-        basic_stops = {'的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一個', '上', '也', '很', '到', '說', '要', '去', '你', '這', '那', '與', '為', '之', '而', '及', '著', '或是', '因為', '所以'}
-        stop_words.update(basic_stops)
+        
+        stop_words.update(taiwan_enhancements)
+        stop_words.update(symbols)
 
-    # 4. 強制補強：台灣慣用語與標點符號 (無論下載是否成功都加入)
-    taiwan_enhancements = {
-        '我們', '你們', '他們', '大家', '自己', '這裡', '那裡', '這邊', '那邊',
-        '的話', '接著', '然後', '於是', '關於', '至於', '以及', '並且',
-        '其實', '基本上', '原則上', '總之', '看來', '一般', '通常', '來說',
-        '部分', '方面', '時候', '結果', '目前', '現在', '已經', '未來',
-        '表示', '認為', '覺得', '希望', '好像', '比如', '例如'
-    }
-    symbols = {'\n', '\r', ' ', '\t', '\u3000', '，', '。', '！', '？', '：', '；', '「', '」', '（', '）', '、'}
-    
-    stop_words.update(taiwan_enhancements)
-    stop_words.update(symbols)
-    
     print(f"停用詞載入完成，共 {len(stop_words)} 個詞彙。")
     return stop_words
 
-# 執行初始化
-configure_matplotlib_chinese()
 STOP_WORDS = initialize_traditional_chinese()
-
-# 確保結果目錄存在
-os.makedirs("results", exist_ok=True)
-
 
 # ==========================================
 # A-1-2: TF-IDF 與 餘弦相似度 (視覺化)
