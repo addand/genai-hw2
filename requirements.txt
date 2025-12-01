@@ -1,0 +1,9 @@
+jieba
+scikit-learn
+matplotlib
+numpy
+pandas
+openpyxl
+google-generativeai
+rouge-score
+time
