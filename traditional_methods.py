@@ -5,15 +5,64 @@ import jieba
 import requests
 import warnings
 import pandas as pd
+import math
+
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import time
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from wordcloud import WordCloud
 
 # 忽略警告
 warnings.filterwarnings("ignore")
+
+#中文詞雲圖
+def create_chinese_wordcloud_msjh(text_content, output_filename):
+    # 1. 設定微軟正黑體路徑 (Windows 預設路徑)
+    font_path = "C:/Windows/Fonts/msjh.ttc"
+    
+    # 檢查字型是否存在
+    if not os.path.exists(font_path):
+        print(f"錯誤：找不到字型檔案 {font_path}，請確認您在 Windows 環境或路徑是否正確。")
+        return
+
+    text_with_spaces = ""
+
+    # === [修正點] 自動判斷輸入是 List 還是 String ===
+    if isinstance(text_content, list):
+        print("偵測到輸入為 List，正在合併並跳過重複斷詞...")
+        # 因為您的 documents_cut 已經斷好詞並用空格隔開了，直接合併即可
+        text_with_spaces = " ".join(text_content)
+    else:
+        print("正在進行中文斷詞...")
+        # 如果是原始字串，才執行 jieba 斷詞
+        seg_list = jieba.cut(text_content, cut_all=False) 
+        text_with_spaces = " ".join(seg_list)
+    # ===============================================
+    
+    # 3. 設定過濾詞 (Stopwords) - 選擇性
+    stopwords = set(["的", "是", "在", "有", "和", "了", "就", "都", "而", "這"])
+
+    # 4. 建立 WordCloud 物件
+    wc = WordCloud(
+        font_path=font_path,       # 關鍵：指定微軟正黑體
+        width=1200,                # 寬度
+        height=800,                # 高度
+        background_color="white",  # 白底
+        max_words=150,             # 只顯示頻率最高的前 150 個詞
+        stopwords=stopwords,       # 套用過濾詞
+        collocations=False         # 避免重複顯示雙詞詞組
+    )
+
+    print("正在生成詞雲圖片...")
+    
+    # 5. 生成並存檔
+    wc.generate(text_with_spaces)
+    wc.to_file(output_filename)
+    
+    print(f"完成！詞雲已儲存為: {output_filename}")
 
 # ==========================================
 # 0. 全域環境初始化 (字型、詞庫、停用詞)
@@ -24,19 +73,57 @@ def configure_matplotlib_chinese():
     font_list = ['Microsoft JhengHei', 'SimHei', 'Arial Unicode MS', 'WenQuanYi Zen Hei']
     plt.rcParams['font.sans-serif'] = font_list
     plt.rcParams['axes.unicode_minus'] = False # 解決負號顯示問題
+    
 
-import os
-import requests
-import jieba
+def calculate_tf(word_dict, total_words):
+    """計算詞頻 (Term Frequency)
+    Args:
+        word_dict: 詞彙計數字典 (例如: {'人工智慧': 2, '發展': 1})
+        total_words: 該文件的總詞數 (例如: 10)
+    Returns:
+        tf_dict: TF 值字典 (例如: {'人工智慧': 0.2, '發展': 0.1})
+    """
+    tf_dict = {}
+    
+    # 避免總詞數為 0 的除法錯誤
+    if total_words == 0:
+        return tf_dict
+
+    # 實作: 遍歷字典，將每個詞的次數除以總詞數
+    for word, count in word_dict.items():
+        tf_dict[word] = count / total_words
+        
+    return tf_dict
+
+def calculate_idf(documents, word):
+    """計算逆文件頻率 (Inverse Document Frequency)
+    Args:
+        documents: 所有文件的列表 (例如: [['人工智慧', '夯'], ['天氣', '好']])
+        word: 目標詞彙 (例如: '人工智慧')
+    Returns:
+        idf: IDF 值
+    """
+    # 總文件數 (N)
+    N = len(documents)
+    
+    # 計算有多少份文件包含這個詞 (Document Frequency, df)
+    # 這裡假設 doc 是 list 或 set，可以直接用 'in' 判斷
+    n_t = sum(1 for doc in documents if word in doc)
+    
+    # 避免除以零 (若沒有任何文件包含該詞，通常回傳 0)
+    if n_t == 0:
+        return 0
+        
+    # 實作: log(總文件數 / 包含該詞的文件數)
+    # math.log10 是常用的底數，也可以用 math.log (自然對數)
+    idf = math.log10(N / n_t)
+    
+    return idf
 
 def initialize_traditional_chinese():
-    """
-    下載並設定 jieba 為繁體中文模式。
-    優化邏輯：若停用詞檔案已存在，則直接讀取，不再下載。
-    """
+
     print("=== 初始化繁體中文環境 ===")
 
-    # --- 1. 設定 jieba 繁體大詞庫 (這部分通常也建議只下載一次) ---
     dict_file = "dict.txt.big"
     if not os.path.exists(dict_file):
         print(f"正在下載繁體中文詞庫 ({dict_file})...")
@@ -54,11 +141,11 @@ def initialize_traditional_chinese():
     if os.path.exists(dict_file):
         jieba.set_dictionary(dict_file)
 
-    # --- 2. 處理停用詞表 (核心優化部分) ---
+    # --- 處理停用詞表 (核心優化部分) ---
     stop_file = "stopwords_tw.txt"
     stop_words = set()
     
-    # 定義需要補強的詞彙 (台灣慣用語 + 標點)
+    # 定義需要補強的詞彙
     taiwan_enhancements = {
         '我們', '你們', '他們', '大家', '自己', '這裡', '那裡', '這邊', '那邊',
         '的話', '接著', '然後', 
@@ -154,6 +241,9 @@ def run_test_and_dump_a1_2():
     # --- 階段 2: 數學運算 (TF-IDF + Cosine Similarity) ---
     print("Step 2: 建立矩陣與計算相似度...")
     t_calc_start = time.perf_counter()
+
+    # 畫詞雲
+    create_chinese_wordcloud_msjh(documents_cut, "results/chinese_wordcloud_a1_similarity.png")
 
     # 計算 TF-IDF
     vectorizer = TfidfVectorizer(token_pattern=r'(?u)\b\w+\b')
@@ -260,20 +350,6 @@ def run_unified_classification():
 
     file_path = "results/classification_result.csv"
     
-    # 建立測試資料 (如果檔案不存在)
-    if not os.path.exists(file_path):
-        print("建立測試用 CSV...")
-        data = {
-            'Text': [
-                '這家餐廳的料理非常美味，湯頭很棒！',
-                '今天天氣太糟糕了，一直下雨好討厭。',
-                '深度學習是目前人工智慧最熱門的技術。',
-                '這部電影劇情很無聊，完全浪費時間。',
-                '我喜歡每天去公園跑步健身。'
-            ]
-        }
-        pd.DataFrame(data).to_csv(file_path, index=False, encoding='utf-8-sig')
-
     # 讀取 CSV
     try:
         df = pd.read_csv(file_path, encoding='utf-8-sig')
@@ -289,8 +365,6 @@ def run_unified_classification():
     # 存檔 (使用 utf-8-sig 以便 Excel 開啟)
     df.to_csv(file_path, index=False, encoding='utf-8-sig')
     print(f"分類結果已儲存至：{file_path}")
-    print(df.head())
-
 
 # ==========================================
 # A-3: 統計式自動摘要
@@ -362,7 +436,13 @@ def run_test_and_dump_a3():
     """
 
     summarizer = StatisticalSummarizer()
-    result = summarizer.summarize(text_data, ratio=0.35) # 取約 35% 的內容
+    result = summarizer.summarize(text_data, ratio=0.12) # 取約 50字摘要
+
+    print("正在生成原文詞雲...")
+    create_chinese_wordcloud_msjh(text_data, "results/wordcloud_a3_original.png")
+
+    print("正在生成摘要詞雲...")
+    create_chinese_wordcloud_msjh(result, "results/wordcloud_a3_summary.png")
 
     print("【原文長度】:", len(text_data))
     print("【摘要結果】:\n", result)

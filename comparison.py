@@ -75,47 +75,47 @@ def calculate_extended_accuracy_report(file_path):
 
 def generate_eval_prompt(original_text, ai_summary, tfidf_summary):
     return f"""
-# Role
-你是一位專業的 NLP 評估專家。請評估以下兩份摘要（TF-IDF 生成 vs AI 生成）的品質。
+    # Role
+    你是一位專業的 NLP 評估專家。請評估以下兩份摘要（TF-IDF 生成 vs AI 生成）的品質。
 
-# Input Data
-## [原文]
-{original_text}
+    # Input Data
+    ## [原文]
+    {original_text}
 
-## [摘要 A: AI生成]
-{ai_summary}
+    ## [摘要 A: AI生成]
+    {ai_summary}
 
-## [摘要 B: TF-IDF生成]
-{tfidf_summary}
+    ## [摘要 B: TF-IDF生成]
+    {tfidf_summary}
 
-# Evaluation Metrics
-1. **資訊保留度 (Information Retention)** (0-100%):
-   - 摘要是否包含原文的關鍵事實與數據？
-   - 忽略文法，只看「重點」是否還在。
-   
-2. **語句通順度 (Fluency)** (0-100%):
-   - 語句是否通順、連貫？
-   - 是否有斷詞破碎、邏輯不通的問題？
+    # Evaluation Metrics
+    1. **資訊保留度 (Information Retention)** (0-100%):
+       - 摘要是否包含原文的關鍵事實與數據？
+       - 忽略文法，只看「重點」是否還在。
+       
+    2. **語句通順度 (Fluency)** (0-100%):
+       - 語句是否通順、連貫？
+       - 是否有斷詞破碎、邏輯不通的問題？
 
-# Output Format (JSON Only)
-請嚴格遵守以下 JSON 格式輸出：
-{{
-  "original_key_points_count": <整數: 原文關鍵點數量>,
-  "ai_summary": {{
-    "retention_score": <整數 0-100>,
-    "fluency_score": <整數 0-100>,
-    "missing_points": "<字串: 遺漏的關鍵點簡述>",
-    "comment": "<字串: 簡短評語>"
-  }},
-  "tfidf_summary": {{
-    "retention_score": <整數 0-100>,
-    "fluency_score": <整數 0-100>,
-    "missing_points": "<字串: 遺漏的關鍵點簡述>",
-    "comment": "<字串: 簡短評語>"
-  }},
-  "winner": "<字串: 'AI' 或 'TF-IDF' 或 'Tie'>"
-}}
-"""
+    # Output Format (JSON Only)
+    請嚴格遵守以下 JSON 格式輸出：
+    {{
+      "original_key_points_count": <整數: 原文關鍵點數量>,
+      "ai_summary": {{
+        "retention_score": <整數 0-100>,
+        "fluency_score": <整數 0-100>,
+        "missing_points": "<字串: 遺漏的關鍵點簡述>",
+        "comment": "<字串: 簡短評語>"
+      }},
+      "tfidf_summary": {{
+        "retention_score": <整數 0-100>,
+        "fluency_score": <整數 0-100>,
+        "missing_points": "<字串: 遺漏的關鍵點簡述>",
+        "comment": "<字串: 簡短評語>"
+      }},
+      "winner": "<字串: 'AI' 或 'TF-IDF' 或 'Tie'>"
+    }}
+    """
 
 # ==========================================
 # 2. Gemini API 呼叫實作
@@ -124,10 +124,7 @@ def call_llm_api(prompt):
     """
     使用 Google Gemini API 進行評估。
     """
-    # -----------------------------------------------------------
-    # 【設定 API Key】請填入您的 Google AI Studio API Key
-    # -----------------------------------------------------------
-    API_KEY = "AIzaSyCfYZ65sWYK9ISihU7_x1me0V2MdCbVhNs"
+    API_KEY = "XXXXXX"
     # 設定 Gemini
     genai.configure(api_key=API_KEY)
 

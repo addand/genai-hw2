@@ -9,7 +9,7 @@ import pandas as pd
 
 #使用 Google Gemini API 設定
 try:
-    GOOGLE_API_KEY = "AIzaSyCfYZ65sWYK9ISihU7_x1me0V2MdCbVhNs"
+    GOOGLE_API_KEY = "XXX"
     genai.configure(api_key=GOOGLE_API_KEY)
     print("✅ API Key 設定成功")
 except Exception as e:
